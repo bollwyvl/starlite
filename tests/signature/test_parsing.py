@@ -1,8 +1,10 @@
 import inspect
+from enum import Enum, unique
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Iterable, List, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Iterable, List, Optional, Sequence, Union
 
 import pytest
+from attrs import define, field
 from pydantic import BaseModel
 
 from starlite import get
@@ -228,3 +230,32 @@ def test_parsed_signature_model_from_parameter_resolves_forward_ref() -> None:
     obj = object()
     parsed_param = ParsedSignatureParameter.from_parameter("func", "a", signature.parameters["a"], {"a": obj})
     assert parsed_param.annotation is obj
+
+
+def test_modelling_attrs() -> None:
+    @unique
+    class CatBreed(Enum):
+        SIAMESE = "siamese"
+        MAINE_COON = "maine_coon"
+        SACRED_BIRMAN = "birman"
+
+    @define
+    class Cat:
+        breed: CatBreed
+        names: Sequence[str]
+
+    @define
+    class DogMicrochip:
+        chip_id = field()
+        time_chipped: float = field()
+
+    @define
+    class Dog:
+        cuteness: int
+        chip: Optional[DogMicrochip] = None
+
+    def handler(data: Union[Dog, Cat]) -> None:
+        ...
+
+    create_signature_model(handler, plugins=[], dependency_name_set=set())
+    raise AssertionError("not implemented yet")
