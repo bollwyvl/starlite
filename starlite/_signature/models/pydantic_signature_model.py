@@ -9,7 +9,6 @@ from pydantic_factories import ModelFactory
 
 from starlite._signature.field import SignatureField
 from starlite._signature.models.base import SignatureModel
-from starlite.connection.request import Request
 from starlite.constants import UNDEFINED_SENTINELS
 from starlite.enums import ScopeType
 from starlite.exceptions import InternalServerException, ValidationException
@@ -49,7 +48,7 @@ class PydanticSignatureModel(SignatureModel, BaseModel):
         try:
             signature = cls(**kwargs)
         except ValidationError as e:
-            method = connection.method if isinstance(connection, Request) else ScopeType.WEBSOCKET
+            method = connection.method if hasattr(connection, "method") else ScopeType.WEBSOCKET  # pyright: ignore
             if client_errors := [error for error in e.errors() if error["loc"][-1] not in cls.dependency_name_set]:
                 raise ValidationException(
                     detail=f"Validation failed for {method} {connection.url}", extra=client_errors

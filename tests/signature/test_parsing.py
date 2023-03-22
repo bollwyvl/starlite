@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from types import ModuleType
     from typing import Callable
 
-    from starlite._signature.models import PydanticSignatureModel
+    from starlite._signature.models.pydantic_signature_model import PydanticSignatureModel
 
 
 def test_parses_values_from_connection_kwargs_with_plugin() -> None:

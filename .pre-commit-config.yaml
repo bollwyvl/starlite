@@ -54,19 +54,21 @@ repos:
         additional_dependencies:
           [
             aiosqlite,
-            asyncpg,
             async_timeout,
+            asyncpg,
+            attrs,
             beanie,
             beautifulsoup4,
             brotli,
+            cattrs,
             click,
             fakeredis,
             fast-query-parsers,
             freezegun,
             fsspec,
             httpx,
-            jsbeautifier,
             hypothesis,
+            jsbeautifier,
             mako,
             mongomock_motor,
             msgspec,
@@ -81,9 +83,9 @@ repos:
             pytest,
             pytest-lazy-fixture,
             pytest-mock,
+            pytest_docker,
             python-dotenv,
             python-jose,
-            pytest_docker,
             pyyaml,
             rich,
             sqlalchemy>2.0,
@@ -97,18 +99,20 @@ repos:
             uvicorn,
           ]
   - repo: https://github.com/RobertCraigie/pyright-python
-    rev: v1.1.299
+    rev: v1.1.300
     hooks:
       - id: pyright
         exclude: "test_apps|tools|docs|_openapi"
         additional_dependencies:
           [
             aiosqlite,
-            asyncpg,
             async_timeout,
+            asyncpg,
+            attrs,
             beanie,
             beautifulsoup4,
             brotli,
+            cattrs,
             click,
             fakeredis,
             fast-query-parsers,

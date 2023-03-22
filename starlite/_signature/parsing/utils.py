@@ -7,8 +7,8 @@ from typing import Any, List
 
 from typing_extensions import get_args, get_type_hints
 
-from starlite import Request, WebSocket
 from starlite._signature.parsing import ParsedSignatureParameter
+from starlite.connection import Request, WebSocket
 from starlite.datastructures import Headers, ImmutableState, State
 from starlite.exceptions import ImproperlyConfiguredException
 from starlite.params import DependencyKwarg, ParameterKwarg

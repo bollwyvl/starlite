@@ -14,13 +14,13 @@ if TYPE_CHECKING:
 try:
     from starlite._signature.models.pydantic_signature_model import PydanticSignatureModel
 except ImportError:
-    PydanticSignatureModel = Empty
+    PydanticSignatureModel = Empty  # type: ignore
 
 
 try:
     from starlite._signature.models.attrs_signature_model import AttrsSignatureModel
 except ImportError:
-    AttrsSignatureModel = Empty
+    AttrsSignatureModel = Empty  # type: ignore
 
 __all__ = ("create_signature_model", "get_signature_model")
 
@@ -51,12 +51,15 @@ def create_signature_model(
     Returns:
         A _signature model.
     """
-    is_pydantic_installed = PydanticSignatureModel is not Empty
-    is_attrs_installed = AttrsSignatureModel is not Empty
+    is_pydantic_installed = PydanticSignatureModel is not Empty  # type: ignore[comparison-overlap]
+    is_attrs_installed = AttrsSignatureModel is not Empty  # type: ignore[comparison-overlap]
 
     unwrapped_fn = cast("AnyCallable", unwrap_partial(fn))
     fn_name = getattr(fn, "__name__", "anonymous")
     fn_module = getattr(fn, "__module__", None)
+
+    if fn_name == "<lambda>":
+        fn_name = "anonymous"
 
     parsed_params, return_annotation, field_plugin_mappings, dependency_names = parse_fn_signature(
         fn=unwrapped_fn,
