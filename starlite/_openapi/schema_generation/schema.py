@@ -38,7 +38,7 @@ from starlite._openapi.schema_generation.constrained_fields import (
     is_pydantic_constrained_field,
 )
 from starlite._openapi.schema_generation.examples import create_examples_for_field
-from starlite._signature.models import SignatureField
+from starlite._signature.field import SignatureField
 from starlite.constants import UNDEFINED_SENTINELS
 from starlite.datastructures import UploadFile
 from starlite.exceptions import ImproperlyConfiguredException

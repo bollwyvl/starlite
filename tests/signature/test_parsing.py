@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from starlite import get
 from starlite._signature import create_signature_model
-from starlite._signature.parsing import ParsedSignatureParameter
+from starlite._signature.parsing.signature_parameter import ParsedSignatureParameter
 from starlite.di import Provide
 from starlite.exceptions import ImproperlyConfiguredException, ValidationException
 from starlite.params import Dependency, Parameter
@@ -246,7 +246,7 @@ def test_modelling_attrs() -> None:
 
     @define
     class DogMicrochip:
-        chip_id = field()
+        chip_id: str = field()
         time_chipped: float = field()
 
     @define
