@@ -45,6 +45,7 @@ if TYPE_CHECKING:
 
 def create_test_client(
     route_handlers: ControllerRouterHandler | Sequence[ControllerRouterHandler] | None = None,
+    *,
     after_exception: OptionalSequence[AfterExceptionHookHandler] = None,
     after_request: AfterRequestHookHandler | None = None,
     after_response: AfterResponseHookHandler | None = None,
@@ -76,6 +77,7 @@ def create_test_client(
     openapi_config: OpenAPIConfig | None = None,
     parameters: ParametersMap | None = None,
     plugins: OptionalSequence[PluginProtocol] = None,
+    preferred_validation_backend: Literal["pydantic", "attrs"] = "attrs",
     raise_server_exceptions: bool = True,
     request_class: type[Request] | None = None,
     response_class: ResponseType | None = None,
@@ -110,6 +112,7 @@ def create_test_client(
                     assert response.json() == {"hello": "world"}
 
     Args:
+        preferred_validation_backend:
         route_handlers: A single handler or a sequence of route handlers, which can include instances of
             :class:`Router <starlite.router.Router>`, subclasses of :class:`Controller <.controller.Controller>` or
             any function decorated by the route handler decorators.
@@ -148,7 +151,7 @@ def create_test_client(
         event_emitter_backend: A subclass of :class:`BaseEventEmitterBackend <.events.BaseEventEmitterBackend>`.
         exception_handlers: A mapping of status codes and/or exception types to handler functions.
         guards: A sequence of :class:`Guard <starlite.types.Guard>` callables.
-        initial_state: An object from which to initialize the app state.
+        state: An object from which to initialize the app state.
         listeners: A sequence of :class:`EventListener <.events.EventListener>`.
         logging_config: A subclass of :class:`BaseLoggingConfig <.logging.config.BaseLoggingConfig>`.
         middleware: A sequence of :class:`Middleware <starlite.types.Middleware>`.
@@ -164,6 +167,7 @@ def create_test_client(
         openapi_config: Defaults to ``DEFAULT_OPENAPI_CONFIG``
         parameters: A mapping of :func:`Parameter <.params.Parameter>` definitions available to all application paths.
         plugins: Sequence of plugins.
+        preferred_validation_backend: Validation backend to use, if multiple are installed.
         request_class: An optional subclass of :class:`Request <.connection.Request>` to use for
             http connections.
         raise_server_exceptions: Flag for underlying the test client to raise server exceptions instead of
@@ -198,7 +202,6 @@ def create_test_client(
             before_send=before_send,
             before_shutdown=before_shutdown,
             before_startup=before_startup,
-            response_cache_config=cache_config,
             compression_config=compression_config,
             cors_config=cors_config,
             csrf_config=csrf_config,
@@ -216,7 +219,9 @@ def create_test_client(
             openapi_config=openapi_config,
             parameters=parameters,
             plugins=plugins,
+            preferred_validation_backend=preferred_validation_backend,
             request_class=request_class,
+            response_cache_config=cache_config,
             response_class=response_class,
             route_handlers=route_handlers,
             state=state,
@@ -235,6 +240,7 @@ def create_test_client(
 
 def create_async_test_client(
     route_handlers: ControllerRouterHandler | Sequence[ControllerRouterHandler] | None = None,
+    *,
     after_exception: OptionalSequence[AfterExceptionHookHandler] = None,
     after_request: AfterRequestHookHandler | None = None,
     after_response: AfterResponseHookHandler | None = None,
@@ -266,6 +272,7 @@ def create_async_test_client(
     openapi_config: OpenAPIConfig | None = None,
     parameters: ParametersMap | None = None,
     plugins: OptionalSequence[SerializationPluginProtocol] = None,
+    preferred_validation_backend: Literal["pydantic", "attrs"] = "attrs",
     raise_server_exceptions: bool = True,
     request_class: type[Request] | None = None,
     response_class: ResponseType | None = None,
@@ -300,6 +307,7 @@ def create_async_test_client(
                     assert response.json() == {"hello": "world"}
 
     Args:
+        preferred_validation_backend:
         route_handlers: A single handler or a sequence of route handlers, which can include instances of
             :class:`Router <starlite.router.Router>`, subclasses of :class:`Controller <starlite.controller.Controller>` or
             any function decorated by the route handler decorators.
@@ -339,7 +347,7 @@ def create_async_test_client(
         event_emitter_backend: A subclass of :class:`BaseEventEmitterBackend <.events.emitter.BaseEventEmitterBackend>`.
         exception_handlers: A mapping of status codes and/or exception types to handler functions.
         guards: A sequence of :class:`Guard <starlite.types.Guard>` callables.
-        initial_state: An object from which to initialize the app state.
+        state: An object from which to initialize the app state.
         listeners: A sequence of :class:`EventListener <starlite.events.listener.EventListener>`.
         logging_config: A subclass of :class:`BaseLoggingConfig <.logging.config.BaseLoggingConfig>`.
         middleware: A sequence of :class:`Middleware <starlite.types.Middleware>`.
@@ -355,6 +363,7 @@ def create_async_test_client(
         parameters: A mapping of :class:`Parameter <starlite.params.Parameter>` definitions available to all
             application paths.
         plugins: Sequence of plugins.
+        preferred_validation_backend: Validation backend to use, if multiple are installed.
         request_class: An optional subclass of :class:`Request <starlite.connection.request.Request>` to use for
             http connections.
         raise_server_exceptions: Flag for underlying the test client to raise server exceptions instead of
@@ -388,7 +397,6 @@ def create_async_test_client(
             before_send=before_send,
             before_shutdown=before_shutdown,
             before_startup=before_startup,
-            response_cache_config=cache_config,
             compression_config=compression_config,
             cors_config=cors_config,
             csrf_config=csrf_config,
@@ -406,7 +414,9 @@ def create_async_test_client(
             openapi_config=openapi_config,
             parameters=parameters,
             plugins=plugins,
+            preferred_validation_backend=preferred_validation_backend,
             request_class=request_class,
+            response_cache_config=cache_config,
             response_class=response_class,
             route_handlers=route_handlers,
             state=state,

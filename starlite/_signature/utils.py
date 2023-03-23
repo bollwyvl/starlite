@@ -37,7 +37,7 @@ def create_signature_model(
     fn: AnyCallable,
     plugins: list[SerializationPluginProtocol],
     dependency_name_set: set[str],
-    preferred_backend: Literal["pydantic", "attrs"] = "attrs",
+    preferred_validation_backend: Literal["pydantic", "attrs"],
 ) -> type[SignatureModel]:
     """Create a model for a callable's signature. The model can than be used to parse and validate before passing it to
     the callable.
@@ -46,7 +46,7 @@ def create_signature_model(
         fn: A callable.
         plugins: A list of plugins.
         dependency_name_set: A set of dependency names
-        preferred_backend: Validation/Parsing backend to prefer, if installed
+        preferred_validation_backend: Validation/Parsing backend to prefer, if installed
 
     Returns:
         A _signature model.
@@ -67,13 +67,10 @@ def create_signature_model(
         dependency_name_set=dependency_name_set,
     )
 
-    should_prefer_pydantic = (
-        (is_pydantic_installed and preferred_backend == "pydantic")
-        or (is_pydantic_installed and not is_attrs_installed)
-        or (
-            is_pydantic_installed
-            and any(p.annotation and hasattr(p.annotation, "__get_validators__") for p in parsed_params)
-        )
+    should_prefer_pydantic = is_pydantic_installed and (
+        preferred_validation_backend == "pydantic"
+        or not is_attrs_installed
+        or any(p.annotation and hasattr(p.annotation, "__get_validators__") for p in parsed_params)
     )
 
     model_class = cast("SignatureModel", PydanticSignatureModel if should_prefer_pydantic else AttrsSignatureModel)
