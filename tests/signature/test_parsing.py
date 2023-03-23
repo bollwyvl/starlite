@@ -11,7 +11,7 @@ from starlite._signature.parsing.signature_parameter import ParsedSignatureParam
 from starlite.di import Provide
 from starlite.exceptions import ImproperlyConfiguredException, ValidationException
 from starlite.params import Dependency, Parameter
-from starlite.status_codes import HTTP_200_OK, HTTP_204_NO_CONTENT, HTTP_400_BAD_REQUEST, HTTP_500_INTERNAL_SERVER_ERROR
+from starlite.status_codes import HTTP_200_OK, HTTP_204_NO_CONTENT, HTTP_500_INTERNAL_SERVER_ERROR
 from starlite.testing import RequestFactory, TestClient, create_test_client
 from starlite.types.helper_types import OptionalSequence
 from tests.test_plugins import AModel, APlugin
@@ -133,27 +133,21 @@ def test_create_function_signature_model_validation(preferred_validation_backend
 
 
 @pytest.mark.parametrize(
-    "preferred_validation_backend, error_detail, error_extra, expected_status",
+    "preferred_validation_backend, error_extra",
     (
         (
             "attrs",
-            "Validation failed for GET http://testserver.local/?param=13",
-            ["invalid literal for int() with base 10: 'thirteen'"],
-            HTTP_400_BAD_REQUEST,
+            [{"key": "dep", "message": "invalid literal for int() with base 10: 'thirteen'"}],
         ),
         (
             "pydantic",
-            "A dependency failed validation for GET http://testserver.local/?param=13",
-            [{"loc": ["dep"], "msg": "value is not a valid integer", "type": "type_error.integer"}],
-            HTTP_500_INTERNAL_SERVER_ERROR,
+            [{"key": "dep", "message": "value is not a valid integer"}],
         ),
     ),
 )
 def test_dependency_validation_failure_raises_500(
     preferred_validation_backend: Literal["attrs", "pydantic"],
-    error_detail: str,
     error_extra: Any,
-    expected_status: int,
 ) -> None:
     dependencies = {"dep": Provide(lambda: "thirteen")}
 
@@ -167,17 +161,17 @@ def test_dependency_validation_failure_raises_500(
         resp = client.get("/?param=13")
 
     assert resp.json() == {
-        "detail": error_detail,
+        "detail": "A dependency failed validation for GET http://testserver.local/?param=13",
         "extra": error_extra,
-        "status_code": expected_status,
+        "status_code": HTTP_500_INTERNAL_SERVER_ERROR,
     }
 
 
 @pytest.mark.parametrize(
     "preferred_validation_backend, error_extra",
     (
-        ("attrs", ["invalid literal for int() with base 10: 'thirteen'"]),
-        ("pydantic", [{"loc": ["param"], "msg": "value is not a valid integer", "type": "type_error.integer"}]),
+        ("attrs", [{"key": "param", "message": "invalid literal for int() with base 10: 'thirteen'"}]),
+        ("pydantic", [{"key": "param", "message": "value is not a valid integer"}]),
     ),
 )
 def test_validation_failure_raises_400(
@@ -215,7 +209,7 @@ def test_client_pydantic_backend_error_precedence_over_server_error() -> None:
 
     assert resp.json() == {
         "detail": "Validation failed for GET http://testserver.local/?param=thirteen",
-        "extra": [{"loc": ["param"], "msg": "value is not a valid integer", "type": "type_error.integer"}],
+        "extra": [{"key": "param", "message": "value is not a valid integer"}],
         "status_code": 400,
     }
 

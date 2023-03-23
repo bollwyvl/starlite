@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import traceback
 from dataclasses import asdict
 from typing import TYPE_CHECKING, Any, cast
 
 from starlite._signature.field import SignatureField
-from starlite._signature.models.base import SignatureModel
-from starlite.enums import ScopeType
-from starlite.exceptions import MissingDependencyException, ValidationException
+from starlite._signature.models.base import ErrorMessage, SignatureModel
+from starlite.exceptions import MissingDependencyException
 from starlite.params import BodyKwarg, DependencyKwarg, ParameterKwarg
 from starlite.types import Empty
 
@@ -25,6 +25,27 @@ if TYPE_CHECKING:
 __all__ = ("AttrsSignatureModel",)
 
 
+def _extract_exceptions(e: Any) -> list[ErrorMessage]:
+    """Extracts and normalizes cattrs exceptions.
+
+    Args:
+        e: An ExceptionGroup - which is a py3.11 feature. We use hasattr instead of instance checks to avoid installing this.
+
+    Returns:
+        A list of normalized exception messages.
+    """
+    messages: list[ErrorMessage] = []
+    if hasattr(e, "exceptions"):
+        for exc in cast(list[Exception], e.exceptions):
+            if hasattr(exc, "exceptions"):
+                messages.extend(_extract_exceptions(exc))
+            elif err_format := [line for line in traceback.format_exception(exc) if "@" in line]:
+                messages.append(
+                    {"key": err_format[0].split("@")[1].replace("attribute", "").strip(), "message": str(exc)}
+                )
+    return messages
+
+
 @attr.define
 class AttrsSignatureModel(SignatureModel):
     """Model that represents a function signature that uses a pydantic specific type or types."""
@@ -32,12 +53,11 @@ class AttrsSignatureModel(SignatureModel):
     @classmethod
     def parse_values_from_connection_kwargs(cls, connection: ASGIConnection, **kwargs: Any) -> dict[str, Any]:
         try:
-            return cast("dict[str, Any]", cattrs.unstructure(cattrs.structure(kwargs, cls)))
+            signature = cattrs.structure(kwargs, cls)
         except cattrs.ClassValidationError as e:
-            method = connection.method if hasattr(connection, "method") else ScopeType.WEBSOCKET  # pyright: ignore
-            raise ValidationException(
-                detail=f"Validation failed for {method} {connection.url}", extra=[str(err) for err in e.exceptions]
-            ) from e
+            raise cls._create_exception(messages=_extract_exceptions(e), connection=connection) from e
+
+        return cast("dict[str, Any]", cattrs.unstructure(signature))
 
     def to_dict(self) -> dict[str, Any]:
         return attrs.asdict(self)
