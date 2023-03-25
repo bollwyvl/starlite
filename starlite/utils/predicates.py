@@ -6,6 +6,7 @@ from dataclasses import is_dataclass
 from inspect import isclass
 from typing import (
     TYPE_CHECKING,
+    AbstractSet,
     Any,
     DefaultDict,
     Deque,
@@ -15,6 +16,9 @@ from typing import (
     Iterable,
     List,
     Mapping,
+    MutableMapping,
+    MutableSequence,
+    MutableSet,
     Optional,
     Sequence,
     Set,
@@ -51,6 +55,22 @@ except ImportError:  # pragma: no cover
 P = ParamSpec("P")
 T = TypeVar("T")
 
+types_mapping = {
+    AbstractSet: set,
+    DefaultDict: defaultdict,
+    Deque: deque,
+    Dict: dict,
+    FrozenSet: frozenset,
+    List: list,
+    Mapping: dict,
+    MutableMapping: dict,
+    MutableSequence: list,
+    MutableSet: set,
+    Sequence: list,
+    Set: set,
+    Tuple: tuple,
+}
+
 
 def get_origin_or_inner_type(annotation: Any) -> Any:
     """Get origin or unwrap it. Returns None for non-generic types.
@@ -63,7 +83,10 @@ def get_origin_or_inner_type(annotation: Any) -> Any:
     """
 
     if origin := get_origin(annotation):
-        return origin if origin not in (Annotated, Required, NotRequired) else get_args(annotation)[0]
+        origin = origin if origin not in (Annotated, Required, NotRequired) else get_args(annotation)[0]
+        if origin in types_mapping:
+            return types_mapping[origin]
+        return origin
     return None
 
 
