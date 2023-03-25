@@ -158,9 +158,9 @@ def test_dependency_validation_failure_raises_500(
     with create_test_client(
         route_handlers=[test], dependencies=dependencies, preferred_validation_backend=preferred_validation_backend
     ) as client:
-        resp = client.get("/?param=13")
+        response = client.get("/?param=13")
 
-    assert resp.json() == {
+    assert response.json() == {
         "detail": "A dependency failed validation for GET http://testserver.local/?param=13",
         "extra": error_extra,
         "status_code": HTTP_500_INTERNAL_SERVER_ERROR,
@@ -169,10 +169,7 @@ def test_dependency_validation_failure_raises_500(
 
 @pytest.mark.parametrize(
     "preferred_validation_backend, error_extra",
-    (
-        ("attrs", [{"key": "param", "message": "invalid literal for int() with base 10: 'thirteen'"}]),
-        ("pydantic", [{"key": "param", "message": "value is not a valid integer"}]),
-    ),
+    (("attrs", [{"key": "param", "message": "invalid literal for int() with base 10: 'thirteen'"}]),),
 )
 def test_validation_failure_raises_400(
     preferred_validation_backend: Literal["attrs", "pydantic"], error_extra: Any
@@ -186,9 +183,9 @@ def test_validation_failure_raises_400(
     with create_test_client(
         route_handlers=[test], dependencies=dependencies, preferred_validation_backend=preferred_validation_backend
     ) as client:
-        resp = client.get("/?param=thirteen")
+        response = client.get("/?param=thirteen")
 
-    assert resp.json() == {
+    assert response.json() == {
         "detail": "Validation failed for GET http://testserver.local/?param=thirteen",
         "extra": error_extra,
         "status_code": 400,
@@ -205,9 +202,9 @@ def test_client_pydantic_backend_error_precedence_over_server_error() -> None:
     with create_test_client(
         route_handlers=[test], dependencies=dependencies, preferred_validation_backend="pydantic"
     ) as client:
-        resp = client.get("/?param=thirteen")
+        response = client.get("/?param=thirteen")
 
-    assert resp.json() == {
+    assert response.json() == {
         "detail": "Validation failed for GET http://testserver.local/?param=thirteen",
         "extra": [{"key": "param", "message": "value is not a valid integer"}],
         "status_code": 400,
@@ -237,9 +234,9 @@ app = Starlite(route_handlers=[hello_world], openapi_config=None)
 """
     )
     with TestClient(app=module.app) as client:
-        resp = client.get("/")
-        assert resp.status_code == 200
-        assert resp.json() == {"hello": "world"}
+        response = client.get("/")
+        assert response.status_code == 200
+        assert response.json() == {"hello": "world"}
 
 
 @pytest.mark.parametrize(("query", "exp"), [("?a=1&a=2&a=3", [1, 2, 3]), ("", None)])
@@ -249,10 +246,9 @@ def test_parse_optional_sequence_from_connection_kwargs(query: str, exp: Any) ->
         return a
 
     with create_test_client(route_handlers=[test]) as client:
-        resp = client.get(f"/{query}")
-
-    assert resp.status_code == HTTP_200_OK
-    assert resp.json() == exp
+        response = client.get(f"/{query}")
+        assert response.status_code == HTTP_200_OK, response.json()
+        assert response.json() == exp
 
 
 @pytest.mark.parametrize("preferred_validation_backend", ("attrs", "pydantic"))

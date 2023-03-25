@@ -27,8 +27,9 @@ from starlite.datastructures import ImmutableState, MultiDict, State, UploadFile
 from starlite.exceptions import MissingDependencyException
 from starlite.params import BodyKwarg, DependencyKwarg, ParameterKwarg
 from starlite.types import Empty
+from starlite.utils import compact
 from starlite.utils.predicates import is_optional_union, is_union
-from starlite.utils.typing import get_origin_or_inner_type, unwrap_union
+from starlite.utils.typing import get_origin_or_inner_type, make_non_optional_union, unwrap_union
 
 try:
     import attr
@@ -41,11 +42,9 @@ if TYPE_CHECKING:
     from starlite._signature.parsing import ParsedSignatureParameter
     from starlite.plugins import PluginMapping
 
-
 key_re = re.compile("@ attribute (.*)|'(.*)'")
 
 __all__ = ("AttrsSignatureModel",)
-
 
 try:
     import pydantic
@@ -55,17 +54,25 @@ try:
             return cls(**value)
         return cls()
 
-    def _unstructure_base_model(value: pydantic.BaseModel) -> dict[str, Any]:
-        return value.dict()
-
-    pydantic_hooks: list[tuple[type[Any], Callable[[Any, type[Any]], Any], Callable[[Any], Any]]] = [
-        (pydantic.BaseModel, _structure_base_model, _unstructure_base_model),
+    pydantic_hooks: list[tuple[type[Any], Callable[[Any, type[Any]], Any]]] = [
+        (pydantic.BaseModel, _structure_base_model),
     ]
 except ImportError:
     pydantic_hooks = []
 
 
+def _pass_through_structure_hook(value: Any, _: type[Any]) -> Any:
+    return value
+
+
+def _pass_through_unstructure_hook(value: Any) -> Any:
+    return value
+
+
 def _structure_datetime(value: Any, cls: type[datetime]) -> datetime:
+    if isinstance(value, datetime):
+        return value
+
     try:
         return cls.utcfromtimestamp(float(value)).replace(tzinfo=timezone.utc)
     except TypeError:
@@ -77,11 +84,10 @@ def _structure_datetime(value: Any, cls: type[datetime]) -> datetime:
         raise ValueError from e
 
 
-def _unstructure_datetime(value: datetime) -> str:
-    return value.isoformat()
-
-
 def _structure_date(value: Any, cls: type[date]) -> date:
+    if isinstance(value, date):
+        return value
+
     if isinstance(value, (float, int, Decimal)):
         return cls.fromtimestamp(float(value))
 
@@ -89,22 +95,19 @@ def _structure_date(value: Any, cls: type[date]) -> date:
     return cls(year=dt.year, month=dt.month, day=dt.day)
 
 
-def _unstructure_date(value: date) -> str:
-    return value.isoformat()
-
-
 def _structure_time(value: Any, cls: type[time]) -> time:
+    if isinstance(value, time):
+        return value
+
     if isinstance(value, str):
         return cls.fromisoformat(value)
     dt = _structure_datetime(value=value, cls=datetime)
     return cls(hour=dt.hour, minute=dt.minute, second=dt.second, microsecond=dt.microsecond, tzinfo=dt.tzinfo)
 
 
-def _unstructure_time(value: time) -> str:
-    return value.isoformat()
-
-
 def _structure_timedelta(value: Any, cls: type[timedelta]) -> timedelta:
+    if isinstance(value, timedelta):
+        return value
     if isinstance(value, (float, int, Decimal)):
         return cls(seconds=int(value))
     if isinstance(value, str):
@@ -112,64 +115,37 @@ def _structure_timedelta(value: Any, cls: type[timedelta]) -> timedelta:
     raise ValueError
 
 
-def _unstructure_timedelta(value: timedelta) -> float:
-    return value.total_seconds()
-
-
 def _structure_decimal(value: Any, cls: type[Decimal]) -> Decimal:
     return cls(str(value))
-
-
-def _unstructure_decimal(value: Decimal) -> str:
-    return str(value)
 
 
 def _structure_path(value: Any, cls: type[PurePath]) -> PurePath:
     return cls(str(value))
 
 
-def _unstructure_path(value: PurePath) -> str:
-    return str(value)
-
-
 def _structure_uuid(value: Any, cls: type[UUID]) -> UUID:
-    return cls(str(value))
-
-
-def _unstructure_uuid(value: PurePath) -> str:
-    return str(value)
+    return value if isinstance(value, UUID) else cls(str(value))
 
 
 def _structure_multidict(value: Any, cls: type[MultiDict]) -> MultiDict:
     return cls(value)
 
 
-def _unstructure_multidict(value: MultiDict) -> dict[str, Any]:
-    return value.dict()
-
-
-def _structure_starlite_class(value: Any, _: type[Any]) -> Any:
-    return value
-
-
-def _unstructure_starlite_class(value: Any) -> Any:
-    return value
-
-
-hooks: list[tuple[type[Any], Callable[[Any, type[Any]], Any], Callable[[Any], Any]]] = [
-    (ASGIConnection, _structure_starlite_class, _unstructure_starlite_class),
-    (Decimal, _structure_decimal, _unstructure_decimal),
-    (ImmutableState, _structure_starlite_class, _unstructure_starlite_class),
-    (PurePath, _structure_path, _unstructure_path),
-    (Request, _structure_starlite_class, _unstructure_starlite_class),
-    (State, _structure_starlite_class, _unstructure_starlite_class),
-    (UUID, _structure_uuid, _unstructure_uuid),
-    (UploadFile, _structure_starlite_class, _unstructure_starlite_class),
-    (WebSocket, _structure_starlite_class, _unstructure_starlite_class),
-    (date, _structure_date, _unstructure_date),
-    (datetime, _structure_datetime, _unstructure_datetime),
-    (time, _structure_time, _unstructure_time),
-    (timedelta, _structure_timedelta, _unstructure_timedelta),
+hooks: list[tuple[type[Any], Callable[[Any, type[Any]], Any]]] = [
+    (ASGIConnection, _pass_through_structure_hook),
+    (Decimal, _structure_decimal),
+    (ImmutableState, _pass_through_structure_hook),
+    (PurePath, _structure_path),
+    (Request, _pass_through_structure_hook),
+    (State, _pass_through_structure_hook),
+    (UUID, _structure_uuid),
+    (UploadFile, _pass_through_structure_hook),
+    (WebSocket, _pass_through_structure_hook),
+    (MultiDict, _structure_multidict),
+    (date, _structure_date),
+    (datetime, _structure_datetime),
+    (time, _structure_time),
+    (timedelta, _structure_timedelta),
     *pydantic_hooks,
 ]
 
@@ -190,9 +166,6 @@ def _create_default_structuring_hooks(
         A tuple of hook handlers
     """
 
-    def _default_unstructuring_hook(value: Any) -> Any:
-        return converter.unstructure(value)
-
     @lru_cache(1024)
     def _default_structuring_hook(value: Any, annotation: Any) -> Any:
         for arg in unwrap_union(annotation) or get_args(annotation):
@@ -200,10 +173,10 @@ def _create_default_structuring_hooks(
                 return converter.structure(arg, value)
             except ValueError:
                 continue
-        return converter.structure(annotation, value)
+        return value
 
     return (
-        _default_unstructuring_hook,
+        _pass_through_unstructure_hook,
         _default_structuring_hook,
     )
 
@@ -218,9 +191,9 @@ class Converter(cattrs.Converter):
             False,
         )
 
-        for cls, structure_hook, unstructure_hook in hooks:
+        for cls, structure_hook in hooks:
             self.register_structure_hook(cls, structure_hook)
-            self.register_unstructure_hook(cls, unstructure_hook)
+            self.register_unstructure_hook(cls, _pass_through_unstructure_hook)
 
 
 _converter: Converter = Converter()
@@ -241,19 +214,14 @@ def _extract_exceptions(e: Any) -> list[ErrorMessage]:
             if hasattr(exc, "exceptions"):
                 messages.extend(_extract_exceptions(exc))
             elif err_format := [line for line in traceback.format_exception(exc) if key_re.search(line)]:
-                messages.append({"key": key_re.findall(err_format[0])[0][1].strip(), "message": str(exc)})
+                messages.append({"key": key_re.findall(compact(err_format)[-1])[0][0].strip(), "message": str(exc)})
     return messages
 
 
 def _create_validators(
     annotation: Any, kwargs_model: BodyKwarg | ParameterKwarg
-) -> list[Callable[[Any, attrs.Attribute[Any], Any], Any]]:
-    if is_union(annotation) or is_optional_union(annotation):
-        instance_of_validator = attrs.validators.instance_of(unwrap_union(annotation))
-    else:
-        instance_of_validator = attrs.validators.instance_of(get_origin_or_inner_type(annotation) or annotation)
-
-    validators: list[Callable[[Any, attrs.Attribute[Any], Any], Any]] = [instance_of_validator]
+) -> list[Callable[[Any, attrs.Attribute[Any], Any], Any]] | Callable[[Any, attrs.Attribute[Any], Any], Any]:
+    validators: list[Callable[[Any, attrs.Attribute[Any], Any], Any]] = []
 
     for value, validator in [
         (kwargs_model.gt, attrs.validators.gt),
@@ -269,7 +237,19 @@ def _create_validators(
         if value is not None:
             validators.append(validator(value))  # type: ignore
 
-    return validators
+    if is_optional_union(annotation):
+        annotation = make_non_optional_union(annotation)
+        instance_of_validator = attrs.validators.instance_of(
+            unwrap_union(annotation) if is_union(annotation) else (get_origin_or_inner_type(annotation) or annotation)
+        )
+        return attrs.validators.optional([instance_of_validator, *validators])
+
+    if is_union(annotation):
+        instance_of_validator = attrs.validators.instance_of(unwrap_union(annotation))
+        return [instance_of_validator, *validators]
+
+    instance_of_validator = attrs.validators.instance_of(get_origin_or_inner_type(annotation) or annotation)
+    return [instance_of_validator, *validators]
 
 
 @attr.define
@@ -329,6 +309,9 @@ class AttrsSignatureModel(SignatureModel):
                 attribute = attr.attrib(
                     type=Any if parameter.should_skip_validation else parameter.annotation,
                     default=parameter.default.default if parameter.default.default is not Empty else None,
+                    metadata={
+                        "kwargs_model": parameter.default,
+                    },
                 )
             elif parameter.should_skip_validation:
                 attribute = attr.attrib(type=Any)

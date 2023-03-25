@@ -165,7 +165,7 @@ def test_query_kwarg() -> None:
     )
 
     @get(test_path)
-    def test_method(a: List[str], b: List[str], query: MultiDict) -> None:
+    def handler(a: List[str], b: List[str], query: MultiDict) -> None:
         assert isinstance(query, MultiDict)
         assert {k: query.getall(k) for k in query} == {"a": ["foo", "bar"], "b": ["qux"]}
         assert isinstance(a, list)
@@ -173,9 +173,9 @@ def test_query_kwarg() -> None:
         assert a == ["foo", "bar"]
         assert b == ["qux"]
 
-    with create_test_client(test_method) as client:
+    with create_test_client(handler) as client:
         response = client.get(f"{test_path}?{params}")
-        assert response.status_code == HTTP_200_OK
+        assert response.status_code == HTTP_200_OK, response.json()
 
 
 @pytest.mark.parametrize(

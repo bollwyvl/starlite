@@ -23,7 +23,7 @@ from .scope import (
     get_starlite_scope_state,
     set_starlite_scope_state,
 )
-from .sequence import find_index, unique
+from .sequence import compact, find_index, unique
 from .sync import (
     AsyncCallable,
     AsyncIteratorWrapper,
@@ -40,6 +40,7 @@ __all__ = (
     "annotation_is_iterable_of_type",
     "as_async_callable_list",
     "async_partial",
+    "compact",
     "convert_dataclass_to_model",
     "convert_typeddict_to_model",
     "create_parsed_model_field",

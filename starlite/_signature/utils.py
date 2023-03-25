@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from inspect import getmembers, isclass
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from starlite._signature.parsing.utils import parse_fn_signature
@@ -21,6 +22,15 @@ try:
     from starlite._signature.models.attrs_signature_model import AttrsSignatureModel
 except ImportError:
     AttrsSignatureModel = Empty  # type: ignore
+
+try:
+    import pydantic
+
+    pydantic_types: tuple[Any, ...] = tuple(
+        cls for _, cls in getmembers(pydantic.types, isclass) if "pydantic.types" in repr(cls)
+    )
+except ImportError:
+    getmembers = ()  # type: ignore
 
 __all__ = ("create_signature_model", "get_signature_model")
 
@@ -70,7 +80,7 @@ def create_signature_model(
     should_prefer_pydantic = is_pydantic_installed and (
         preferred_validation_backend == "pydantic"
         or not is_attrs_installed
-        or any(p.annotation and hasattr(p.annotation, "__get_validators__") for p in parsed_params)
+        or any(p.annotation in pydantic_types or hasattr(p.annotation, "__get_validators__") for p in parsed_params)
     )
 
     model_class = cast("SignatureModel", PydanticSignatureModel if should_prefer_pydantic else AttrsSignatureModel)
