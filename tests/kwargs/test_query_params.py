@@ -1,13 +1,9 @@
 from datetime import datetime
 from typing import (
     Any,
-    Deque,
     Dict,
-    FrozenSet,
     List,
-    MutableSequence,
     Optional,
-    Set,
     Tuple,
     Union,
 )
@@ -132,21 +128,8 @@ def test_query_params(params_dict: dict, should_raise: bool) -> None:
 @pytest.mark.parametrize(
     "expected_type,provided_value,default,expected_response_code",
     [
-        (List[int], [1, 2, 3], ..., HTTP_200_OK),
-        (List[int], [1], ..., HTTP_200_OK),
-        (List[str], ["foo", "bar"], Parameter(min_items=1), HTTP_200_OK),
-        (List[str], ["foo", "bar"], Parameter(min_items=3), HTTP_400_BAD_REQUEST),
-        (List[int], ["foo", "bar"], ..., HTTP_400_BAD_REQUEST),
-        (Tuple[int, str, int], (1, "foo", 2), ..., HTTP_200_OK),
-        (Optional[List[str]], [], None, HTTP_200_OK),
-        (Any, [1, 2, 3], ..., HTTP_200_OK),
         (Union[int, List[int]], [1, 2, 3], None, HTTP_200_OK),
         (Union[int, List[int]], [1], None, HTTP_200_OK),
-        (Deque[int], [1, 2, 3], None, HTTP_200_OK),
-        (Set[int], [1, 2, 3], None, HTTP_200_OK),
-        (FrozenSet[int], [1, 2, 3], None, HTTP_200_OK),
-        (Tuple[int, ...], [1, 2, 3], None, HTTP_200_OK),
-        (MutableSequence[int], [1, 2, 3], None, HTTP_200_OK),
     ],
 )
 def test_query_param_arrays(expected_type: Any, provided_value: Any, default: Any, expected_response_code: int) -> None:

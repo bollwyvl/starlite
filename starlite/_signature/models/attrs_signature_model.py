@@ -4,7 +4,7 @@ import re
 import traceback
 from dataclasses import asdict
 from datetime import date, datetime, time, timedelta, timezone
-from functools import partial
+from functools import lru_cache, partial
 from pathlib import PurePath
 from typing import (
     TYPE_CHECKING,
@@ -18,6 +18,7 @@ from uuid import UUID
 from _decimal import Decimal
 from dateutil.parser import ParserError, parse
 from pytimeparse.timeparse import timeparse
+from typing_extensions import get_args
 
 from starlite._signature.field import SignatureField
 from starlite._signature.models.base import ErrorMessage, SignatureModel
@@ -26,7 +27,8 @@ from starlite.datastructures import ImmutableState, MultiDict, State, UploadFile
 from starlite.exceptions import MissingDependencyException
 from starlite.params import BodyKwarg, DependencyKwarg, ParameterKwarg
 from starlite.types import Empty
-from starlite.utils.predicates import get_origin_or_inner_type
+from starlite.utils.predicates import is_optional_union, is_union
+from starlite.utils.typing import get_origin_or_inner_type, unwrap_union
 
 try:
     import attr
@@ -172,9 +174,49 @@ hooks: list[tuple[type[Any], Callable[[Any, type[Any]], Any], Callable[[Any], An
 ]
 
 
+def _create_default_structuring_hooks(
+    converter: cattrs.Converter,
+) -> tuple[Callable, Callable]:
+    """Create scoped default hooks for a given converter.
+
+    Notes:
+        - We are forced to use this pattern because some types cannot be handled by cattrs out of the box. For example,
+            union types, optionals, complex union types etc.
+        - See: https://github.com/python-attrs/cattrs/issues/311
+    Args:
+        converter: A converter instance
+
+    Returns:
+        A tuple of hook handlers
+    """
+
+    def _default_unstructuring_hook(value: Any) -> Any:
+        return converter.unstructure(value)
+
+    @lru_cache(1024)
+    def _default_structuring_hook(value: Any, annotation: Any) -> Any:
+        for arg in unwrap_union(annotation) or get_args(annotation):
+            try:
+                return converter.structure(arg, value)
+            except ValueError:
+                continue
+        return converter.structure(annotation, value)
+
+    return (
+        _default_unstructuring_hook,
+        _default_structuring_hook,
+    )
+
+
 class Converter(cattrs.Converter):
     def __init__(self) -> None:
         super().__init__()
+
+        # this is a hack to create a catch-all hook, see: https://github.com/python-attrs/cattrs/issues/311
+        self._structure_func._function_dispatch._handler_pairs[-1] = (
+            *_create_default_structuring_hooks(self),
+            False,
+        )
 
         for cls, structure_hook, unstructure_hook in hooks:
             self.register_structure_hook(cls, structure_hook)
@@ -206,9 +248,12 @@ def _extract_exceptions(e: Any) -> list[ErrorMessage]:
 def _create_validators(
     annotation: Any, kwargs_model: BodyKwarg | ParameterKwarg
 ) -> list[Callable[[Any, attrs.Attribute[Any], Any], Any]]:
-    validators: list[Callable[[Any, attrs.Attribute[Any], Any], Any]] = [
-        attrs.validators.instance_of(get_origin_or_inner_type(annotation) or annotation)
-    ]
+    if is_union(annotation) or is_optional_union(annotation):
+        instance_of_validator = attrs.validators.instance_of(unwrap_union(annotation))
+    else:
+        instance_of_validator = attrs.validators.instance_of(get_origin_or_inner_type(annotation) or annotation)
+
+    validators: list[Callable[[Any, attrs.Attribute[Any], Any], Any]] = [instance_of_validator]
 
     for value, validator in [
         (kwargs_model.gt, attrs.validators.gt),
