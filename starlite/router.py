@@ -10,7 +10,7 @@ from starlite.exceptions import ImproperlyConfiguredException
 from starlite.handlers.asgi_handlers import ASGIRouteHandler
 from starlite.handlers.base import BaseRouteHandler
 from starlite.handlers.http_handlers import HTTPRouteHandler
-from starlite.handlers.websocket_handlers import WebsocketRouteHandler
+from starlite.handlers.websocket_handlers import WebsocketListener, WebsocketRouteHandler
 from starlite.routes import ASGIRoute, HTTPRoute, WebSocketRoute
 from starlite.utils import find_index, is_class_and_subclass, join_paths, normalize_path, unique
 from starlite.utils.sync import AsyncCallable
@@ -276,6 +276,10 @@ class Router:
         """Ensure values passed to the register method are supported."""
         if is_class_and_subclass(value, Controller):
             return value(owner=self)
+
+        # this narrows down to an ABC, but we assume a non-abstract subclass of the ABC superclass
+        if is_class_and_subclass(value, WebsocketListener):  # type: ignore[type-abstract]
+            return value()._handler  # pyright: ignore
 
         if isinstance(value, Router):
             if value.owner:

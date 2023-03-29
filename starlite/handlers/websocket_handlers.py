@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import inspect
+from abc import ABC, abstractmethod
 from inspect import Signature
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Callable, Literal
 
 from starlite.exceptions import ImproperlyConfiguredException, WebSocketDisconnect
 from starlite.handlers.base import BaseRouteHandler
 from starlite.utils import AsyncCallable, Ref, is_async_callable
 
-__all__ = ("WebsocketRouteHandler", "websocket", "websocket_listener")
+__all__ = ("WebsocketRouteHandler", "websocket", "websocket_listener", "WebsocketListener")
 
 
 if TYPE_CHECKING:
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
         Guard,
         MaybePartial,  # noqa: F401
         Middleware,
+        SyncOrAsyncUnion,
     )
 
 
@@ -116,10 +118,15 @@ class websocket_listener(WebsocketRouteHandler):
         opt: dict[str, Any] | None = None,
         signature_namespace: Mapping[str, Any] | None = None,
         mode: Literal["text", "binary"] = "text",
+        on_accept: Callable[[WebSocket], SyncOrAsyncUnion[None]] | None = None,
+        on_disconnect: Callable[[WebSocket], SyncOrAsyncUnion[None]] | None = None,
         **kwargs: Any,
     ) -> None:
         self.mode = mode
         self._pass_socket = False
+        self._on_accept = AsyncCallable(on_accept) if on_accept else None
+        self._on_disconnect = AsyncCallable(on_disconnect) if on_disconnect else None
+
         super().__init__(
             path=path,
             dependencies=dependencies,
@@ -142,6 +149,8 @@ class websocket_listener(WebsocketRouteHandler):
 
         async def listener_fn(socket: WebSocket, **kwargs: Any) -> None:
             await socket.accept()
+            if self._on_accept:
+                await self._on_accept(socket)
             if self._pass_socket:
                 kwargs["socket"] = socket
             while True:
@@ -149,6 +158,8 @@ class websocket_listener(WebsocketRouteHandler):
                     data = await socket.receive_data(mode=self.mode)  # pyright: ignore
                     await listener_callback(data=data, **kwargs)
                 except WebSocketDisconnect:
+                    if self._on_disconnect:
+                        await self._on_disconnect(socket)
                     break
 
         # make our listener_fn look like the callback, so we get a correct signature model
@@ -178,3 +189,40 @@ class websocket_listener(WebsocketRouteHandler):
         for param in ("request", "body"):
             if param in signature.parameters:
                 raise ImproperlyConfiguredException(f"The {param} kwarg is not supported with websocket listeners")
+
+
+class WebsocketListener(ABC):
+    path: str | None | list[str] | None = None
+    dependencies: Dependencies | None = None
+    exception_handlers: dict[int | type[Exception], ExceptionHandler] | None = None
+    guards: list[Guard] | None = None
+    middleware: list[Middleware] | None = None
+    name: str | None = None
+    opt: dict[str, Any] | None = None
+    signature_namespace: Mapping[str, Any] | None = None
+    mode: Literal["text", "binary"] = "text"
+
+    def __init__(self) -> None:
+        self._handler = websocket_listener(
+            path=self.path,
+            dependencies=self.dependencies,
+            exception_handlers=self.exception_handlers,
+            guards=self.guards,
+            middleware=self.middleware,
+            name=self.name,
+            opt=self.opt,
+            signature_namespace=self.signature_namespace,
+            mode=self.mode,
+            on_accept=self.on_accept,
+            on_disconnect=self.on_disconnect,
+        )(self.on_receive)
+
+    def on_accept(self, socket: WebSocket) -> SyncOrAsyncUnion[None]:  # noqa: B027
+        pass
+
+    @abstractmethod
+    def on_receive(self, *args: Any, **kwargs: Any) -> SyncOrAsyncUnion[None]:
+        raise NotImplementedError
+
+    def on_disconnect(self, socket: WebSocket) -> SyncOrAsyncUnion[None]:  # noqa: B027
+        pass
