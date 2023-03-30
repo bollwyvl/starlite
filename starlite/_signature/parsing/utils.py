@@ -66,7 +66,7 @@ def get_fn_type_hints(fn: Any, namespace: dict[str, Any] | None = None) -> dict[
         **vars(sys.modules[fn_to_inspect.__module__]),
         **(namespace or {}),
     }
-    return get_type_hints(fn_to_inspect, globalns=namespace)
+    return get_type_hints(fn_to_inspect, globalns=namespace, include_extras=True)
 
 
 def get_type_annotation_from_plugin(
@@ -92,7 +92,10 @@ def get_type_annotation_from_plugin(
 
 
 def parse_fn_signature(
-    fn: AnyCallable, plugins: list[SerializationPluginProtocol], dependency_name_set: set[str]
+    fn: AnyCallable,
+    plugins: list[SerializationPluginProtocol],
+    dependency_name_set: set[str],
+    signature_namespace: dict[str, Any],
 ) -> tuple[list[ParsedSignatureParameter], Any, dict[str, PluginMapping], set[str]]:
     """Parse a function signature into data used for the generation of a signature model.
 
@@ -100,6 +103,7 @@ def parse_fn_signature(
         fn: A callable.
         plugins: A list of plugins.
         dependency_name_set: A set of dependency names
+        signature_namespace: A mapping of names to types for forward reference resolution
 
     Returns:
         A tuple containing the following values for generating a signature model: a mapping of field definitions, the
@@ -111,7 +115,7 @@ def parse_fn_signature(
     field_plugin_mappings: dict[str, PluginMapping] = {}
     parsed_params: list[ParsedSignatureParameter] = []
     dependency_names: set[str] = set()
-    fn_type_hints = get_fn_type_hints(fn)
+    fn_type_hints = get_fn_type_hints(fn, namespace=signature_namespace)
 
     parameters = (
         ParsedSignatureParameter.from_parameter(
@@ -146,4 +150,4 @@ def parse_fn_signature(
 
         parsed_params.append(parameter)
 
-    return parsed_params, signature.return_annotation, field_plugin_mappings, dependency_names
+    return parsed_params, fn_type_hints.get("return", Signature.empty), field_plugin_mappings, dependency_names
