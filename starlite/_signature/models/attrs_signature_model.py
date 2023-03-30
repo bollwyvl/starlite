@@ -213,7 +213,9 @@ def _extract_exceptions(e: Any) -> list[ErrorMessage]:
         for exc in cast("list[Exception]", e.exceptions):
             if hasattr(exc, "exceptions"):
                 messages.extend(_extract_exceptions(exc))
-            elif err_format := [line for line in traceback.format_exception(exc) if key_re.search(line)]:
+            elif err_format := [
+                line for line in traceback.format_exception_only(type(exc), exc) if key_re.search(line)
+            ]:
                 messages.append({"key": key_re.findall(compact(err_format)[-1])[0][0].strip(), "message": str(exc)})
     return messages
 
