@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "starlite"
-version = "2.0.0alpha1"
+version = "2.0.0alpha2"
 description = "Performant, light and flexible ASGI API Framework"
 authors = ["Na'aman Hirschfeld <nhirschfeld@gmail.com>"]
 maintainers = [
@@ -13,17 +13,8 @@ license = "MIT"
 readme = "README.md"
 homepage = "https://starliteproject.dev/"
 repository = "https://github.com/starlite-api/starlite"
-documentation = "https://starliteproject.dev/lib/"
-keywords = [
-    "api",
-    "rest",
-    "http",
-    "asgi",
-    "pydantic",
-    "starlite",
-    "framework",
-    "websocket",
-]
+documentation = "https://docs.starliteproject.dev/"
+keywords = ["api", "rest", "http", "asgi", "pydantic", "starlite", "framework", "websocket"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Web Environment",
@@ -58,7 +49,7 @@ importlib-metadata = { version = "*", python = "<3.10" }
 jinja2 = { version = ">=3.1.2", optional = true }
 jsbeautifier = { version = "*", optional = true }
 mako = { version = ">=1.2.4", optional = true }
-msgspec = ">=0.11.0"
+msgspec = "*"
 multidict = ">=6.0.2"
 opentelemetry-instrumentation-asgi = { version = "*", optional = true }
 picologging = { version = "*", optional = true }
@@ -76,7 +67,6 @@ typing-extensions = "*"
 
 [tool.poetry.group.dev.dependencies]
 aiosqlite = "*"
-async_timeout = { version = "*", python = ">=3.11" }
 asyncpg = "*"
 attrs = "*"
 beautifulsoup4 = "*"
@@ -84,7 +74,7 @@ brotli = "*"
 cattrs = "*"
 click = "*"
 cryptography = "*"
-fakeredis = { extras = ["lua"], version = ">=2.9.0" }
+fakeredis = { extras = ["lua"], version = ">=2.10.2" }
 freezegun = "*"
 fsspec = "*"
 greenlet = "*"

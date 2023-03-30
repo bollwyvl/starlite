@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
 from functools import partial
+from itertools import chain
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Mapping, Sequence, cast
 
@@ -15,6 +16,7 @@ from starlite.config.allowed_hosts import AllowedHostsConfig
 from starlite.config.app import AppConfig
 from starlite.config.response_cache import ResponseCacheConfig
 from starlite.connection import Request, WebSocket
+from starlite.constants import OPENAPI_NOT_INITIALIZED
 from starlite.datastructures.state import State
 from starlite.events.emitter import BaseEventEmitterBackend, SimpleEventEmitter
 from starlite.exceptions import (
@@ -44,7 +46,7 @@ from starlite.utils import (
     join_paths,
     unique,
 )
-from starlite.utils.dataclass import extract_dataclass_fields
+from starlite.utils.dataclass import extract_dataclass_items
 
 __all__ = ("HandlerIndex", "Starlite")
 
@@ -147,6 +149,7 @@ class Starlite(Router):
         "logger",
         "logging_config",
         "multipart_form_part_limit",
+        "signature_namespace",
         "on_shutdown",
         "on_startup",
         "openapi_config",
@@ -205,6 +208,7 @@ class Starlite(Router):
         response_cookies: ResponseCookies | None = None,
         response_headers: OptionalSequence[ResponseHeader] = None,
         security: OptionalSequence[SecurityRequirement] = None,
+        signature_namespace: Mapping[str, Any] | None = None,
         state: State | None = None,
         static_files_config: OptionalSequence[StaticFilesConfig] = None,
         stores: StoreRegistry | dict[str, Store] | None = None,
@@ -287,6 +291,7 @@ class Starlite(Router):
             security: A sequence of dicts that will be added to the schema of all route handlers in the application.
                 See
                 :data:`SecurityRequirement <.openapi.spec.SecurityRequirement>` for details.
+            signature_namespace: A mapping of names to types for use in forward reference resolution during signature modelling.
             state: An optional :class:`State <.datastructures.State>` for application state.
             static_files_config: A sequence of :class:`StaticFilesConfig <.static_files.StaticFilesConfig>`
             stores: Central registry of :class:`Store <.stores.base.Store>` that will be available throughout the
@@ -300,12 +305,6 @@ class Starlite(Router):
             websocket_class: An optional subclass of :class:`WebSocket <.connection.WebSocket>` to use for websocket
                 connections.
         """
-        self._openapi_schema: OpenAPI | None = None
-        self.get_logger: GetLogger = get_logger_placeholder
-        self.logger: Logger | None = None
-        self.routes: list[HTTPRoute | ASGIRoute | WebSocketRoute] = []
-        self.asgi_router = ASGIRouter(app=self)
-
         if logging_config is Empty:
             logging_config = LoggingConfig()
 
@@ -348,6 +347,7 @@ class Starlite(Router):
             response_headers=response_headers or [],
             route_handlers=list(route_handlers) if route_handlers is not None else [],
             security=list(security or []),
+            signature_namespace=dict(signature_namespace or {}),
             state=state or State(),
             static_files_config=list(static_files_config or []),
             stores=stores,
@@ -356,9 +356,19 @@ class Starlite(Router):
             type_encoders=type_encoders,
             websocket_class=websocket_class,
         )
-        for handler in on_app_init or []:
+        for handler in chain(
+            on_app_init or [],
+            (p.on_app_init for p in config.plugins if isinstance(p, InitPluginProtocol)),
+        ):
             config = handler(config)
 
+        self._openapi_schema: OpenAPI | None = None
+        self.get_logger: GetLogger = get_logger_placeholder
+        self.logger: Logger | None = None
+        self.routes: list[HTTPRoute | ASGIRoute | WebSocketRoute] = []
+        self.asgi_router = ASGIRouter(app=self)
+
+        self.allowed_hosts = cast("AllowedHostsConfig | None", config.allowed_hosts)
         self.after_exception = as_async_callable_list(config.after_exception)
         self.after_shutdown = as_async_callable_list(config.after_shutdown)
         self.after_startup = as_async_callable_list(config.after_startup)
@@ -405,12 +415,10 @@ class Starlite(Router):
             # route handlers are registered below
             route_handlers=[],
             security=config.security,
+            signature_namespace=config.signature_namespace,
             tags=config.tags,
             type_encoders=config.type_encoders,
         )
-
-        for plugin in (p for p in config.plugins if isinstance(p, InitPluginProtocol)):
-            plugin.on_app_init(app=self)
 
         for route_handler in config.route_handlers:
             self.register(route_handler)
@@ -458,17 +466,24 @@ class Starlite(Router):
         await self.asgi_handler(scope, receive, self._wrap_send(send=send, scope=scope))  # type: ignore[arg-type]
 
     @property
-    def openapi_schema(self) -> OpenAPI | None:
+    def openapi_schema(self) -> OpenAPI:
         """Access  the OpenAPI schema of the application.
 
         Returns:
             The :class:`OpenAPI`
             <pydantic_openapi_schema.open_api.OpenAPI> instance of the
-            application's.
+            application.
+
+        Raises:
+            ImproperlyConfiguredException: If the application ``openapi_config`` attribute is ``None``.
         """
-        if self.openapi_config and not self._openapi_schema:
+        if not self.openapi_config:
+            raise ImproperlyConfiguredException(OPENAPI_NOT_INITIALIZED)
+
+        if not self._openapi_schema:
             self._openapi_schema = self.openapi_config.to_openapi_schema()
             self.update_openapi_schema()
+
         return self._openapi_schema
 
     @classmethod
@@ -481,7 +496,7 @@ class Starlite(Router):
         Returns:
             An instance of ``Starlite`` application.
         """
-        return cls(**dict(extract_dataclass_fields(config)))
+        return cls(**dict(extract_dataclass_items(config)))
 
     def register(self, value: ControllerRouterHandler) -> None:  # type: ignore[override]
         """Register a route handler on the app.
@@ -727,6 +742,7 @@ class Starlite(Router):
                 fn=cast("AnyCallable", route_handler.fn.value),
                 plugins=self.serialization_plugins,
                 dependency_name_set=route_handler.dependency_name_set,
+                signature_namespace=route_handler.resolve_signature_namespace(),
                 preferred_validation_backend=self.preferred_validation_backend,
             )
 
@@ -736,6 +752,7 @@ class Starlite(Router):
                     fn=provider.dependency.value,
                     plugins=self.serialization_plugins,
                     dependency_name_set=route_handler.dependency_name_set,
+                    signature_namespace=route_handler.resolve_signature_namespace(),
                     preferred_validation_backend=self.preferred_validation_backend,
                 )
 
@@ -802,7 +819,7 @@ class Starlite(Router):
                         )
                     operation_ids.append(operation_id)
 
-    async def emit(self, event_id: str, *args: Any, **kwargs: Any) -> None:
+    def emit(self, event_id: str, *args: Any, **kwargs: Any) -> None:
         """Emit an event to all attached listeners.
 
         Args:
@@ -813,4 +830,4 @@ class Starlite(Router):
         Returns:
             None
         """
-        await self.event_emitter.emit(event_id, *args, **kwargs)
+        self.event_emitter.emit(event_id, *args, **kwargs)

@@ -91,7 +91,7 @@ async def test_to_response_async_await(anyio_backend: str) -> None:
 
     person_instance = PersonFactory.build()
     test_function.signature_model = create_signature_model(
-        test_function.fn.value, [], set(), preferred_validation_backend="pydantic"
+        test_function.fn.value, [], set(), signature_namespace={}, preferred_validation_backend="pydantic"
     )
 
     response = await test_function.to_response(

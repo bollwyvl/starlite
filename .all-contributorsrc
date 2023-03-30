@@ -610,7 +610,8 @@
       "avatar_url": "https://avatars.githubusercontent.com/u/17198460?v=4",
       "profile": "https://github.com/ste-pool",
       "contributions": [
-        "code"
+        "code",
+        "infra"
       ]
     },
     {
@@ -840,6 +841,24 @@
       "name": "Antoine van der Horst",
       "avatar_url": "https://avatars.githubusercontent.com/u/29492757?v=4",
       "profile": "https://github.com/Galdanwing",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "zoni",
+      "name": "Nick Groenen",
+      "avatar_url": "https://avatars.githubusercontent.com/u/145285?v=4",
+      "profile": "https://nick.groenen.me",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "giorgiovilardo",
+      "name": "Giorgio Vilardo",
+      "avatar_url": "https://avatars.githubusercontent.com/u/56472600?v=4",
+      "profile": "https://github.com/giorgiovilardo",
       "contributions": [
         "doc"
       ]
